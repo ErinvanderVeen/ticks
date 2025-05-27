@@ -10,7 +10,11 @@ use reqwest::{
     Url,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    error::{self, Error},
+    fmt,
+};
 use tasks::{Task, TaskID};
 
 /// Errors that can occur while calling the TickTick API.
@@ -156,6 +160,33 @@ pub enum AuthorizationError {
 impl From<reqwest::Error> for AuthorizationError {
     fn from(value: reqwest::Error) -> Self {
         Self::ReqwestClientError(value)
+    }
+}
+
+impl fmt::Display for AuthorizationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ReqwestClientError(err) => write!(f, "Authorization request failed: {}", err),
+            Self::InvalidCSRFState { expected, recieved } => write!(
+                f,
+                "Invalid CSRF token: expected `{}`, but received `{}`",
+                expected.secret(),
+                recieved.secret()
+            ),
+        }
+    }
+}
+
+impl error::Error for AuthorizationError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            AuthorizationError::ReqwestClientError(error) => error.source(),
+            AuthorizationError::InvalidCSRFState { .. } => None,
+        }
+    }
+
+    fn cause(&self) -> Option<&dyn error::Error> {
+        self.source()
     }
 }
 
